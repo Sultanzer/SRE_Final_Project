@@ -8,8 +8,15 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/sultanzer/sre-capstone-ecommerce-api
+
 jobs:
-  build-and-validate:
+  build-push-and-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,8 +36,23 @@ jobs:
         working-directory: app
         run: node -c src/server.js
 
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Docker image
-        run: docker build -t sre-capstone-ecommerce-api:ci ./app
+        run: |
+          docker build -t $IMAGE_NAME:${{ github.sha }} -t $IMAGE_NAME:latest ./app
+
+      - name: Push Docker image to GHCR
+        if: github.event_name == 'push'
+        run: |
+          docker push $IMAGE_NAME:${{ github.sha }}
+          docker push $IMAGE_NAME:latest
 
       - name: Validate Kubernetes manifests
         run: |
@@ -47,7 +69,7 @@ jobs:
           test -f terraform/versions.tf
           test -f terraform/terraform.tfvars.example
 
-      - name: Validate monitoring files
+      - name: Validate monitoring and load testing files
         run: |
           test -f prometheus.local.yml
           test -f grafana/dashboards/ecommerce-sre-dashboard.json
