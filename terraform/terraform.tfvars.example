@@ -1,0 +1,4 @@
+namespace = "sre-capstone"
+kube_config_path = "~/.kube/config"
+image = "ghcr.io/OWNER/sre-capstone-ecommerce-api:latest"
+replicas = 2

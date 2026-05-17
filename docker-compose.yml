@@ -1,0 +1,26 @@
+services:
+  ecommerce-api:
+    build: ./app
+    image: sre-capstone-ecommerce-api:local
+    ports:
+      - "4000:4000"
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./prometheus.local.yml:/etc/prometheus/prometheus.yml
+      - ./k8s/monitoring/prometheus-alerts.local.yml:/etc/prometheus/alerts.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - ecommerce-api
+  grafana:
+    image: grafana/grafana:11.0.0
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus

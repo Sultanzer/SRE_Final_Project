@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: sre-capstone
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    rule_files:
+      - /etc/prometheus/alerts.yml
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      - job_name: 'ecommerce-api'
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['ecommerce-api:4000']
+  alerts.yml: |
+    groups:
+      - name: ecommerce-slo-alerts
+        rules:
+          - alert: HighErrorRate
+            expr: sum(rate(http_requests_total{job="ecommerce-api",status_code=~"5.."}[5m])) / sum(rate(http_requests_total{job="ecommerce-api"}[5m])) > 0.05
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High 5xx error rate"
+              description: "More than 5% of requests are failing for 2 minutes."
+          - alert: HighLatencyP95
+            expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="ecommerce-api"}[5m])) by (le)) > 0.5
+            for: 3m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High p95 latency"
+              description: "p95 latency is above 500ms for 3 minutes."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: sre-capstone
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.53.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: sre-capstone
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP

@@ -1,0 +1,17 @@
+groups:
+  - name: ecommerce-slo-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{job="ecommerce-api",status_code=~"5.."}[5m])) / sum(rate(http_requests_total{job="ecommerce-api"}[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate"
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="ecommerce-api"}[5m])) by (le)) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency"
